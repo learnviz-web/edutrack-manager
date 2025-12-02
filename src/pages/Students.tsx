@@ -1,6 +1,19 @@
 /**
- * Students Page
- * CRUD operations for student management with search and pagination
+ * ============================================
+ * STUDENTS PAGE (CRUD OPERATIONS)
+ * ============================================
+ * This page allows users to:
+ * 1. View all students in a table
+ * 2. Add new students
+ * 3. Edit existing students
+ * 4. Delete students
+ * 5. Search students by name or ID
+ * 
+ * Key concepts for presentation:
+ * - CRUD = Create, Read, Update, Delete
+ * - Real-time data from database
+ * - Search functionality
+ * - Form validation
  */
 
 import { useEffect, useState } from 'react';
@@ -32,224 +45,207 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { z } from 'zod';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 
-// Student type definition
+// ============================================
+// STUDENT DATA TYPE
+// ============================================
 interface Student {
-  id: string;
-  student_id: string;
+  id: string;           // Unique identifier (UUID)
+  student_id: string;   // Student ID (like "STU001")
   first_name: string;
   last_name: string;
   email: string;
-  phone: string | null;
-  date_of_birth: string | null;
-  address: string | null;
-  enrollment_date: string | null;
-  status: string;
+  enrollment_date: string;
+  status: string;       // active or inactive
+  created_at: string;
+  updated_at: string;
 }
 
-// Validation schema for student form
-const studentSchema = z.object({
-  student_id: z.string().min(1, 'Student ID is required').max(20),
-  first_name: z.string().min(1, 'First name is required').max(50),
-  last_name: z.string().min(1, 'Last name is required').max(50),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().max(20).optional(),
-  date_of_birth: z.string().optional(),
-  address: z.string().max(200).optional(),
-  status: z.enum(['active', 'inactive', 'graduated']),
-});
-
-const ITEMS_PER_PAGE = 10;
-
 export default function Students() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  
-  // Form state
-  const [formData, setFormData] = useState<{
-    student_id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    date_of_birth: string;
-    address: string;
-    status: 'active' | 'inactive' | 'graduated';
-  }>({
+  // ============================================
+  // STATE VARIABLES (Data storage)
+  // ============================================
+  const [students, setStudents] = useState<Student[]>([]);  // All students from database
+  const [loading, setLoading] = useState(true);             // Is data loading?
+  const [searchTerm, setSearchTerm] = useState('');         // Search input
+  const [dialogOpen, setDialogOpen] = useState(false);      // Is add/edit dialog open?
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);  // Student being edited
+
+  // Form data for add/edit
+  const [formData, setFormData] = useState({
     student_id: '',
     first_name: '',
     last_name: '',
     email: '',
-    phone: '',
-    date_of_birth: '',
-    address: '',
-    status: 'active',
+    enrollment_date: new Date().toISOString().split('T')[0],
+    status: 'active' as 'active' | 'inactive',
   });
 
-  const { toast } = useToast();
+  const { toast } = useToast();  // For showing success/error messages
 
-  // Fetch students with search and pagination
+  // ============================================
+  // FETCH STUDENTS FROM DATABASE
+  // ============================================
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      // Query the database using Supabase client
+      const { data, error } = await supabase
         .from('students')
-        .select('*', { count: 'exact' });
-
-      // Apply search filter
-      if (searchTerm) {
-        query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,student_id.ilike.%${searchTerm}%`);
-      }
-
-      // Apply pagination
-      const from = (currentPage - 1) * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-      
-      const { data, count, error } = await query
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .select('*')
+        .order('created_at', { ascending: false });  // Newest first
 
       if (error) throw error;
-      
       setStudents(data || []);
-      setTotalCount(count || 0);
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Failed to fetch students',
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error loading students', 
+        description: error.message 
       });
     } finally {
       setLoading(false);
     }
   };
 
+  // Load students when page first loads
   useEffect(() => {
     fetchStudents();
-  }, [currentPage, searchTerm]);
+  }, []);
 
-  // Reset form data
+  // ============================================
+  // SEARCH FILTER
+  // ============================================
+  // Filter students based on search term
+  const filteredStudents = students.filter((student) =>
+    student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.student_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // ============================================
+  // RESET FORM
+  // ============================================
   const resetForm = () => {
     setFormData({
       student_id: '',
       first_name: '',
       last_name: '',
       email: '',
-      phone: '',
-      date_of_birth: '',
-      address: '',
+      enrollment_date: new Date().toISOString().split('T')[0],
       status: 'active',
     });
     setEditingStudent(null);
   };
 
-  // Open dialog for editing
+  // ============================================
+  // EDIT STUDENT
+  // ============================================
   const handleEdit = (student: Student) => {
     setEditingStudent(student);
+    // Fill form with student's current data
     setFormData({
       student_id: student.student_id,
       first_name: student.first_name,
       last_name: student.last_name,
       email: student.email,
-      phone: student.phone || '',
-      date_of_birth: student.date_of_birth || '',
-      address: student.address || '',
-      status: student.status as 'active' | 'inactive' | 'graduated',
+      enrollment_date: student.enrollment_date,
+      status: student.status as 'active' | 'inactive',
     });
     setDialogOpen(true);
   };
 
-  // Handle form submission (create/update)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate form data
-    const result = studentSchema.safeParse(formData);
-    if (!result.success) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: result.error.errors[0].message,
-      });
-      return;
-    }
+  // ============================================
+  // CREATE OR UPDATE STUDENT
+  // ============================================
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();  // Prevent page reload
 
     try {
-      const studentData = {
-        ...formData,
-        phone: formData.phone || null,
-        date_of_birth: formData.date_of_birth || null,
-        address: formData.address || null,
-      };
-
       if (editingStudent) {
-        // Update existing student
+        // UPDATE existing student
         const { error } = await supabase
           .from('students')
-          .update(studentData)
-          .eq('id', editingStudent.id);
-
+          .update(formData)
+          .eq('id', editingStudent.id);  // Match by ID
+        
         if (error) throw error;
         toast({ title: 'Success', description: 'Student updated successfully' });
       } else {
-        // Create new student
+        // CREATE new student
         const { error } = await supabase
           .from('students')
-          .insert([studentData]);
-
-        if (error) throw error;
-        toast({ title: 'Success', description: 'Student created successfully' });
+          .insert([formData]);
+        
+        if (error) {
+          // Check for duplicate student ID
+          if (error.code === '23505') {
+            toast({ 
+              variant: 'destructive', 
+              title: 'Error', 
+              description: 'Student ID already exists' 
+            });
+            return;
+          }
+          throw error;
+        }
+        toast({ title: 'Success', description: 'Student added successfully' });
       }
 
+      // Close dialog and refresh list
       setDialogOpen(false);
       resetForm();
       fetchStudents();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Operation failed',
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error.message 
       });
     }
   };
 
-  // Handle delete
+  // ============================================
+  // DELETE STUDENT
+  // ============================================
   const handleDelete = async (id: string) => {
+    // Confirm before deleting
     if (!confirm('Are you sure you want to delete this student?')) return;
 
     try {
-      const { error } = await supabase.from('students').delete().eq('id', id);
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', id);  // Match by ID
+
       if (error) throw error;
-      
       toast({ title: 'Success', description: 'Student deleted successfully' });
-      fetchStudents();
+      fetchStudents();  // Refresh the list
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Failed to delete student',
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error', 
+        description: error.message 
       });
     }
   };
 
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
-
+  // ============================================
+  // RENDER UI
+  // ============================================
   return (
     <DashboardLayout>
       <div className="content-container">
-        {/* Page header */}
+        {/* PAGE HEADER */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Students</h1>
             <p className="text-muted-foreground">Manage student records</p>
           </div>
+          
+          {/* ADD STUDENT BUTTON - Opens dialog */}
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button>
@@ -257,23 +253,75 @@ export default function Students() {
                 Add Student
               </Button>
             </DialogTrigger>
+            
+            {/* ADD/EDIT DIALOG */}
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingStudent ? 'Edit Student' : 'Add New Student'}</DialogTitle>
               </DialogHeader>
+              
+              {/* FORM */}
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Student ID */}
+                <div className="space-y-2">
+                  <Label htmlFor="student_id">Student ID *</Label>
+                  <Input
+                    id="student_id"
+                    value={formData.student_id}
+                    onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                    placeholder="STU001"
+                    required
+                  />
+                </div>
+
+                {/* First Name and Last Name */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Student ID *</Label>
+                    <Label htmlFor="first_name">First Name *</Label>
                     <Input
-                      value={formData.student_id}
-                      onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
-                      placeholder="STU001"
+                      id="first_name"
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Status *</Label>
+                    <Label htmlFor="last_name">Last Name *</Label>
+                    <Input
+                      id="last_name"
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                {/* Enrollment Date and Status */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="enrollment_date">Enrollment Date *</Label>
+                    <Input
+                      id="enrollment_date"
+                      type="date"
+                      value={formData.enrollment_date}
+                      onChange={(e) => setFormData({ ...formData, enrollment_date: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status *</Label>
                     <Select value={formData.status} onValueChange={(v: any) => setFormData({ ...formData, status: v })}>
                       <SelectTrigger>
                         <SelectValue />
@@ -281,89 +329,37 @@ export default function Students() {
                       <SelectContent>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="graduated">Graduated</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>First Name *</Label>
-                    <Input
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Last Name *</Label>
-                    <Input
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Email *</Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date of Birth</Label>
-                    <Input
-                      type="date"
-                      value={formData.date_of_birth}
-                      onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Address</Label>
-                  <Input
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  />
-                </div>
+
+                {/* Form Buttons */}
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                     Cancel
                   </Button>
-                  <Button type="submit">
-                    {editingStudent ? 'Update' : 'Create'}
-                  </Button>
+                  <Button type="submit">{editingStudent ? 'Update' : 'Add'}</Button>
                 </div>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <div className="relative max-w-sm">
+        {/* SEARCH BAR */}
+        <div className="mb-4">
+          <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search students..."
+              placeholder="Search by name, ID, or email..."
               value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
           </div>
         </div>
 
-        {/* Table */}
+        {/* STUDENTS TABLE */}
         <div className="table-container">
           <Table>
             <TableHeader>
@@ -371,7 +367,7 @@ export default function Students() {
                 <TableHead>Student ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
+                <TableHead>Enrollment Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -380,34 +376,34 @@ export default function Students() {
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Loading...
+                    Loading students...
                   </TableCell>
                 </TableRow>
-              ) : students.length === 0 ? (
+              ) : filteredStudents.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No students found
+                    {searchTerm ? 'No students found matching your search' : 'No students yet. Add your first student!'}
                   </TableCell>
                 </TableRow>
               ) : (
-                students.map((student) => (
+                // Map through filtered students and display each row
+                filteredStudents.map((student) => (
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">{student.student_id}</TableCell>
                     <TableCell>{student.first_name} {student.last_name}</TableCell>
                     <TableCell>{student.email}</TableCell>
-                    <TableCell>{student.phone || '-'}</TableCell>
+                    <TableCell>{new Date(student.enrollment_date).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <span className={`badge-status ${
-                        student.status === 'active' ? 'badge-active' : 
-                        student.status === 'graduated' ? 'badge-completed' : 'badge-inactive'
-                      }`}>
+                      <span className={`badge-status ${student.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>
                         {student.status}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
+                      {/* Edit Button */}
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(student)}>
                         <Edit className="h-4 w-4" />
                       </Button>
+                      {/* Delete Button */}
                       <Button variant="ghost" size="sm" onClick={() => handleDelete(student.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -418,34 +414,6 @@ export default function Students() {
             </TableBody>
           </Table>
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <p className="text-sm text-muted-foreground">
-              Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm">Page {currentPage} of {totalPages}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );

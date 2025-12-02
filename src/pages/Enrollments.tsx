@@ -1,6 +1,13 @@
 /**
- * Enrollments Page
- * Manage student-course enrollments
+ * ============================================
+ * ENROLLMENTS PAGE
+ * ============================================
+ * This page manages student-course enrollments
+ * 
+ * Key concepts for presentation:
+ * - Links students with courses (many-to-many relationship)
+ * - Uses foreign keys to connect tables
+ * - Displays data from multiple tables (JOIN operation)
  */
 
 import { useEffect, useState } from 'react';
@@ -32,9 +39,11 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 
-// Types
+// ============================================
+// DATA TYPES
+// ============================================
 interface Student {
   id: string;
   student_id: string;
@@ -55,20 +64,18 @@ interface Enrollment {
   enrolled_at: string;
   grade: string | null;
   status: string;
-  students: Student;
-  courses: Course;
+  students: Student;    // JOIN with students table
+  courses: Course;      // JOIN with courses table
 }
 
-const ITEMS_PER_PAGE = 10;
-
 export default function Enrollments() {
+  // ============================================
+  // STATE VARIABLES
+  // ============================================
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
 
@@ -76,32 +83,30 @@ export default function Enrollments() {
     student_id: '',
     course_id: '',
     grade: '',
-    status: 'enrolled' as 'enrolled' | 'completed' | 'dropped',
+    status: 'enrolled' as 'enrolled' | 'completed',
   });
 
   const { toast } = useToast();
 
-  // Fetch enrollments with student and course data
+  // ============================================
+  // FETCH ENROLLMENTS (with student and course data)
+  // ============================================
   const fetchEnrollments = async () => {
     setLoading(true);
     try {
-      const from = (currentPage - 1) * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-
-      // Get enrollments with joins
-      const { data, count, error } = await supabase
+      // JOIN enrollments with students and courses tables
+      // This gets student name and course title in one query
+      const { data, error } = await supabase
         .from('enrollments')
         .select(`
           *,
           students!inner(id, student_id, first_name, last_name),
           courses!inner(id, course_code, title)
-        `, { count: 'exact' })
-        .order('enrolled_at', { ascending: false })
-        .range(from, to);
+        `)
+        .order('enrolled_at', { ascending: false });
 
       if (error) throw error;
       setEnrollments((data as any) || []);
-      setTotalCount(count || 0);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -109,7 +114,9 @@ export default function Enrollments() {
     }
   };
 
-  // Fetch students and courses for dropdowns
+  // ============================================
+  // FETCH ACTIVE STUDENTS AND COURSES for dropdowns
+  // ============================================
   const fetchOptions = async () => {
     try {
       const [studentsRes, coursesRes] = await Promise.all([
@@ -124,11 +131,15 @@ export default function Enrollments() {
     }
   };
 
+  // Load data when page first loads
   useEffect(() => {
     fetchEnrollments();
     fetchOptions();
-  }, [currentPage]);
+  }, []);
 
+  // ============================================
+  // RESET FORM
+  // ============================================
   const resetForm = () => {
     setFormData({
       student_id: '',
@@ -139,20 +150,27 @@ export default function Enrollments() {
     setEditingEnrollment(null);
   };
 
+  // ============================================
+  // EDIT ENROLLMENT
+  // ============================================
   const handleEdit = (enrollment: Enrollment) => {
     setEditingEnrollment(enrollment);
     setFormData({
       student_id: enrollment.student_id,
       course_id: enrollment.course_id,
       grade: enrollment.grade || '',
-      status: enrollment.status as 'enrolled' | 'completed' | 'dropped',
+      status: enrollment.status as 'enrolled' | 'completed',
     });
     setDialogOpen(true);
   };
 
+  // ============================================
+  // CREATE OR UPDATE ENROLLMENT
+  // ============================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate required fields
     if (!formData.student_id || !formData.course_id) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a student and course' });
       return;
@@ -167,6 +185,7 @@ export default function Enrollments() {
       };
 
       if (editingEnrollment) {
+        // UPDATE existing enrollment
         const { error } = await supabase
           .from('enrollments')
           .update(enrollmentData)
@@ -174,6 +193,7 @@ export default function Enrollments() {
         if (error) throw error;
         toast({ title: 'Success', description: 'Enrollment updated' });
       } else {
+        // CREATE new enrollment
         const { error } = await supabase.from('enrollments').insert([enrollmentData]);
         if (error) {
           if (error.code === '23505') {
@@ -193,6 +213,9 @@ export default function Enrollments() {
     }
   };
 
+  // ============================================
+  // DELETE ENROLLMENT
+  // ============================================
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this enrollment?')) return;
 
@@ -206,8 +229,7 @@ export default function Enrollments() {
     }
   };
 
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
-
+  // Format date for display
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -216,14 +238,20 @@ export default function Enrollments() {
     });
   };
 
+  // ============================================
+  // RENDER UI
+  // ============================================
   return (
     <DashboardLayout>
       <div className="content-container">
+        {/* PAGE HEADER */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Enrollments</h1>
             <p className="text-muted-foreground">Manage student course enrollments</p>
           </div>
+          
+          {/* ADD ENROLLMENT BUTTON */}
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button>
@@ -231,11 +259,16 @@ export default function Enrollments() {
                 Add Enrollment
               </Button>
             </DialogTrigger>
+            
+            {/* ADD/EDIT DIALOG */}
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingEnrollment ? 'Edit Enrollment' : 'Create Enrollment'}</DialogTitle>
               </DialogHeader>
+              
+              {/* FORM */}
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Student Dropdown */}
                 <div className="space-y-2">
                   <Label>Student *</Label>
                   <Select 
@@ -255,6 +288,8 @@ export default function Enrollments() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Course Dropdown */}
                 <div className="space-y-2">
                   <Label>Course *</Label>
                   <Select 
@@ -274,6 +309,8 @@ export default function Enrollments() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Grade and Status */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Grade</Label>
@@ -292,11 +329,12 @@ export default function Enrollments() {
                       <SelectContent>
                         <SelectItem value="enrolled">Enrolled</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="dropped">Dropped</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+
+                {/* Form Buttons */}
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                     Cancel
@@ -308,6 +346,7 @@ export default function Enrollments() {
           </Dialog>
         </div>
 
+        {/* ENROLLMENTS TABLE */}
         <div className="table-container">
           <Table>
             <TableHeader>
@@ -349,7 +388,7 @@ export default function Enrollments() {
                     <TableCell>
                       <span className={`badge-status ${
                         enrollment.status === 'enrolled' ? 'badge-enrolled' :
-                        enrollment.status === 'completed' ? 'badge-completed' : 'badge-dropped'
+                        'badge-completed'
                       }`}>
                         {enrollment.status}
                       </span>
@@ -368,23 +407,6 @@ export default function Enrollments() {
             </TableBody>
           </Table>
         </div>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <p className="text-sm text-muted-foreground">
-              Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm">Page {currentPage} of {totalPages}</span>
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );

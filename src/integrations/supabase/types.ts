@@ -118,43 +118,34 @@ export type Database = {
       }
       students: {
         Row: {
-          address: string | null
           created_at: string | null
-          date_of_birth: string | null
           email: string
           enrollment_date: string | null
           first_name: string
           id: string
           last_name: string
-          phone: string | null
           status: string | null
           student_id: string
           updated_at: string | null
         }
         Insert: {
-          address?: string | null
           created_at?: string | null
-          date_of_birth?: string | null
           email: string
           enrollment_date?: string | null
           first_name: string
           id?: string
           last_name: string
-          phone?: string | null
           status?: string | null
           student_id: string
           updated_at?: string | null
         }
         Update: {
-          address?: string | null
           created_at?: string | null
-          date_of_birth?: string | null
           email?: string
           enrollment_date?: string | null
           first_name?: string
           id?: string
           last_name?: string
-          phone?: string | null
           status?: string | null
           student_id?: string
           updated_at?: string | null
