@@ -15,8 +15,7 @@ import {
   ClipboardList,
   LogOut,
   Menu,
-  X,
-  Shield
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,7 +33,7 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, userRole, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -109,12 +108,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <p className="text-sm font-medium text-sidebar-foreground truncate">
                   {user?.email}
                 </p>
-                <div className="flex items-center gap-1">
-                  <Shield className="h-3 w-3 text-sidebar-primary" />
-                  <p className="text-xs text-sidebar-foreground/60 capitalize">
-                    {userRole || 'No role'}
-                  </p>
-                </div>
               </div>
             </div>
             <Button 
